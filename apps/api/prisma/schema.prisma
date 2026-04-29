@@ -1,0 +1,176 @@
+// =============================================================================
+// Schema do banco — facial
+// =============================================================================
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Eventos
+// ---------------------------------------------------------------------------
+model Event {
+  id            String     @id @default(uuid())
+  nome          String
+  inicio        DateTime
+  fim           DateTime
+  local         String?
+  retencaoDias  Int        @default(10)
+  criadoEm      DateTime   @default(now())
+  atualizadoEm  DateTime   @updatedAt
+
+  attendees     Attendee[]
+  totens        Totem[]
+  checkins      Checkin[]
+
+  @@map("events")
+}
+
+// ---------------------------------------------------------------------------
+// Participantes (dados pessoais — colunas sensíveis serão criptografadas via pgcrypto)
+// ---------------------------------------------------------------------------
+model Attendee {
+  id              String       @id @default(uuid())
+  protocolo       String       @unique  // ex: cmoiyjs71000d584kvhkxqrfo (cuid2)
+  eventId         String
+  evento          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  nome            String
+  sobrenome       String
+  // CPF: armazenar hash + última 3 dígitos para exibição. Coluna cifrada em migration manual.
+  cpfHash         String       @unique
+  cpfLast3        String
+  dataNascimento  DateTime     @db.Date
+  cargo           String?
+  email           String
+  celular         String
+  municipio       String
+
+  consentimentoLgpd     Boolean
+  consentimentoIp       String?
+  consentimentoEm       DateTime?
+
+  status          AttendeeStatus @default(PENDING_PHOTOS)
+  embeddingId     String?        // id no Qdrant
+  // Cache de "última passagem pelo totem" (denormalizado p/ listagens rápidas).
+  // O histórico completo fica em Checkin.
+  checkInEm       DateTime?
+  checkInTotemId  String?
+
+  fotos           Photo[]
+  audits          AuditLog[]
+  checkins        Checkin[]
+
+  criadoEm        DateTime     @default(now())
+  atualizadoEm    DateTime     @updatedAt
+
+  @@index([eventId, status])
+  @@map("attendees")
+}
+
+enum AttendeeStatus {
+  PENDING_PHOTOS
+  PRE_REGISTERED
+  CHECKED_IN
+  DELETED
+}
+
+// ---------------------------------------------------------------------------
+// Fotos (originais armazenadas no S3/MinIO; aqui só referenciamos)
+// ---------------------------------------------------------------------------
+model Photo {
+  id           String   @id @default(uuid())
+  attendeeId   String
+  attendee     Attendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  storageKey   String   // ex: "<eventId>/<attendeeId>/foto1.jpg"
+  ordem        Int      // 1=frente, 2=ângulo
+  qualityScore Float?
+  larguraPx    Int?
+  alturaPx     Int?
+  criadoEm     DateTime @default(now())
+
+  @@unique([attendeeId, ordem])
+  @@map("photos")
+}
+
+// ---------------------------------------------------------------------------
+// Totens
+// ---------------------------------------------------------------------------
+model Totem {
+  id         String   @id @default(uuid())
+  nome       String
+  eventId    String
+  evento     Event    @relation(fields: [eventId], references: [id])
+  apiKey     String   @unique
+  ultimoSync DateTime?
+  criadoEm   DateTime @default(now())
+
+  checkins   Checkin[]
+
+  @@map("totens")
+}
+
+// ---------------------------------------------------------------------------
+// Histórico de check-ins — uma linha por passagem pelo totem.
+// Permite múltiplas passagens por participante (ex: eventos de vários dias)
+// e relatórios por data, por totem e por tipo (auto/manual).
+// ---------------------------------------------------------------------------
+model Checkin {
+  id           String       @id @default(uuid())
+  attendeeId   String
+  attendee     Attendee     @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  eventId      String
+  evento       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  totemId      String?
+  totem        Totem?       @relation(fields: [totemId], references: [id], onDelete: SetNull)
+
+  tipo         CheckinTipo  @default(AUTO)
+  similarity   Float?       // score do reconhecimento facial (null em manual)
+  registradoEm DateTime     @default(now())
+
+  @@index([eventId, registradoEm])
+  @@index([attendeeId])
+  @@index([eventId, attendeeId])
+  @@map("checkins")
+}
+
+enum CheckinTipo {
+  AUTO
+  MANUAL
+}
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+model AdminUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  nome         String
+  senhaHash    String   // argon2
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+
+  @@map("admin_users")
+}
+
+// ---------------------------------------------------------------------------
+// Auditoria (LGPD Art. 11 — log de acessos a dados biométricos)
+// ---------------------------------------------------------------------------
+model AuditLog {
+  id          String   @id @default(uuid())
+  attendeeId  String?
+  attendee    Attendee? @relation(fields: [attendeeId], references: [id], onDelete: SetNull)
+  acao        String   // ex: "ENROLL", "MATCH_OK", "MATCH_FAIL", "DELETE", "EXPORT"
+  ator        String   // "system", "<adminId>", "<totemId>"
+  ip          String?
+  detalhes    Json?
+  criadoEm    DateTime @default(now())
+
+  @@index([attendeeId])
+  @@index([criadoEm])
+  @@map("audit_log")
+}

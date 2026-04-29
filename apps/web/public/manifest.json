@@ -1,0 +1,10 @@
+{
+  "name": "Credenciamento Facial",
+  "short_name": "Credenciamento",
+  "description": "Pré-cadastro facial para eventos",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#5878ff",
+  "icons": []
+}

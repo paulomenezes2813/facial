@@ -1,0 +1,112 @@
+# =============================================================================
+# Facial — infraestrutura local de desenvolvimento
+# Sobe: PostgreSQL, Redis, MinIO, Qdrant
+# Uso:  docker compose up -d
+#       docker compose logs -f
+#       docker compose down -v   (apaga volumes)
+# =============================================================================
+
+name: facial
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: facial-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-facial}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-facial_dev_pwd}
+      POSTGRES_DB: ${POSTGRES_DB:-facial}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-facial} -d ${POSTGRES_DB:-facial}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - facial-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: facial-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - facial-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: facial-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_pwd}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"     # S3 API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001" # Console web
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - facial-net
+
+  # Cria o bucket automaticamente após o MinIO subir
+  minio-init:
+    image: minio/mc:latest
+    container_name: facial-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minio} ${MINIO_ROOT_PASSWORD:-minio_dev_pwd} &&
+      mc mb -p local/${MINIO_BUCKET:-facial-photos} || true &&
+      mc anonymous set none local/${MINIO_BUCKET:-facial-photos} &&
+      echo 'Bucket criado: ${MINIO_BUCKET:-facial-photos}'
+      "
+    networks:
+      - facial-net
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: facial-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"     # REST
+      - "${QDRANT_GRPC_PORT:-6334}:6334" # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - facial-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  qdrant_data:
+
+networks:
+  facial-net:
+    driver: bridge

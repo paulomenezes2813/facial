@@ -1,0 +1,48 @@
+# =============================================================================
+# Aplicado em build context da raiz do monorepo (api e web)
+# =============================================================================
+
+# Dependências
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build / cache
+**/dist
+**/.next
+**/build
+.turbo
+**/*.tsbuildinfo
+
+# Python (do recognition — não precisa nos builds Node)
+apps/recognition/.venv
+apps/recognition/__pycache__
+apps/recognition/**/__pycache__
+apps/recognition/**/*.pyc
+
+# Editor / SO
+.DS_Store
+.vscode
+.idea
+*.swp
+
+# Git
+.git
+.gitignore
+
+# Env (NUNCA copiar pro container)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Docs / dev
+docs/screens
+*.md
+!apps/api/prisma/schema.sql
+
+# Testes
+coverage
+.nyc_output
