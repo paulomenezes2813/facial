@@ -16,6 +16,7 @@ interface FaceCameraProps {
 export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -24,6 +25,11 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
   const start = useCallback(async () => {
     setError(null);
     try {
+      // Garante que não fica uma stream anterior “presa” ao trocar de etapa (foto1 → foto2).
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setStream(null);
+
       const s = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'user',
@@ -32,9 +38,13 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
         },
         audio: false,
       });
+      streamRef.current = s;
       setStream(s);
       if (videoRef.current) {
         videoRef.current.srcObject = s;
+        // Em alguns browsers/mobile, o autoplay não inicia sem chamar play() explicitamente.
+        // O botão "Capturar" depende de stream != null, mas o preview pode ficar preto sem play().
+        await videoRef.current.play().catch(() => {});
       }
     } catch (e: any) {
       setError(
@@ -48,7 +58,8 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
   useEffect(() => {
     start();
     return () => {
-      stream?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -67,7 +78,8 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setPreviewUrl(dataUrl);
     // Para a câmera enquanto preview está visível
-    stream?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     setStream(null);
   }
 

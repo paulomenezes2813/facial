@@ -276,17 +276,7 @@ function OvalGuide({ active }: { active: boolean }) {
       viewBox="0 0 100 133"
       preserveAspectRatio="xMidYMid slice"
     >
-      <defs>
-        <mask id="totem-hole">
-          <rect width="100" height="133" fill="white" />
-          <ellipse cx="50" cy="62" rx="28" ry="38" fill="black" />
-        </mask>
-      </defs>
-
-      {/* Escurece fora do oval para guiar o posicionamento */}
-      <rect width="100" height="133" fill="rgba(0,0,0,0.55)" mask="url(#totem-hole)" />
-
-      {/* Contorno com “sombra” para alto contraste */}
+      {/* Contorno com “sombra” para alto contraste, sem escurecer o vídeo */}
       <ellipse
         cx="50"
         cy="62"
