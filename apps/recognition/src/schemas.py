@@ -20,6 +20,7 @@ class EnrollResponse(BaseModel):
     quality_score: float
     liveness_score: float
     face_count: int
+    face_image_base64: str | None = None
 
 
 class MatchRequest(BaseModel):

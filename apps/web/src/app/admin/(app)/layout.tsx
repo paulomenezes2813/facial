@@ -14,7 +14,6 @@ export default async function AdminAppLayout({ children }: { children: React.Rea
   try {
     me = await adminApi.me(token);
   } catch {
-    clearAdminToken();
     redirect('/admin/login');
   }
 

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { EventsService } from './events.service';
+import { Public } from '../auth/public.decorator';
 
 interface CreateEventBody {
   nome: string;
@@ -21,11 +22,13 @@ interface UpdateEventBody {
 export class EventsController {
   constructor(private readonly service: EventsService) {}
 
+  @Public()
   @Get()
   list() {
     return this.service.list();
   }
 
+  @Public()
   @Get(':id')
   byId(@Param('id') id: string) {
     return this.service.byId(id);

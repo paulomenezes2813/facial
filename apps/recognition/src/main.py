@@ -70,6 +70,7 @@ async def enroll(req: EnrollRequest) -> EnrollResponse:
         )
 
     embedding_id = str(uuid.uuid4())
+    face_b64 = engine.crop_face_base64_jpeg(img, face.bbox)
     store.upsert(
         point_id=embedding_id,
         embedding=face.embedding,
@@ -87,6 +88,7 @@ async def enroll(req: EnrollRequest) -> EnrollResponse:
         quality_score=face.det_score,
         liveness_score=live,
         face_count=1,
+        face_image_base64=face_b64,
     )
 
 

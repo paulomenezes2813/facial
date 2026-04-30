@@ -21,7 +21,14 @@ import { Public } from '../auth/public.decorator';
 export class AttendeesController {
   constructor(private readonly service: AttendeesService) {}
 
-  // ---------- ROTAS PÚBLICAS (cadastro do participante) ----------
+  // ==========================================================================
+  // ⚠ ROTAS ESTÁTICAS PRIMEIRO!
+  // NestJS/Express resolvem por ordem de registro. Tudo que tem path literal
+  // (ex: 'check', 'pendentes/list') tem que vir ANTES das rotas com :id.
+  // Senão `/attendees/pendentes/list` vira `:id = "pendentes"` + sobra "/list".
+  // ==========================================================================
+
+  // ---------- Públicas ----------
 
   @Public()
   @Post('register')
@@ -30,15 +37,11 @@ export class AttendeesController {
   }
 
   @Public()
-  @Post(':id/photos')
-  async addPhoto(
-    @Param('id') id: string,
-    @Body() body: { ordem: 1 | 2; imageBase64: string },
-  ) {
-    if (body.ordem !== 1 && body.ordem !== 2) {
-      throw new BadRequestException('ordem deve ser 1 ou 2');
-    }
-    return this.service.addPhoto({ attendeeId: id, ordem: body.ordem, imageBase64: body.imageBase64 });
+  @Get('check')
+  async check(@Query('eventoId') eventoId: string, @Query('cpf') cpf: string) {
+    if (!eventoId) throw new BadRequestException('eventoId é obrigatório');
+    if (!cpf) throw new BadRequestException('cpf é obrigatório');
+    return this.service.check(eventoId, cpf);
   }
 
   @Public()
@@ -53,7 +56,21 @@ export class AttendeesController {
     };
   }
 
-  // ---------- ROTAS ADMIN ----------
+  // ---------- Admin: re-indexação ----------
+
+  /** Lista todos pendentes de indexação (com foto mas sem embedding). */
+  @Get('pendentes/list')
+  listPendentes(@Query('eventId') eventId?: string) {
+    return this.service.listPendentes(eventId);
+  }
+
+  /** Re-indexa em lote todos os pendentes. Pode filtrar por evento. */
+  @Post('pendentes/enroll-all')
+  enrollPendentes(@Query('eventId') eventId?: string) {
+    return this.service.enrollPendentes(eventId);
+  }
+
+  // ---------- Admin: listagem ----------
 
   @Get()
   async list(
@@ -62,6 +79,44 @@ export class AttendeesController {
     @Query('q') q?: string,
   ) {
     return this.service.list({ eventId, status, q });
+  }
+
+  // ==========================================================================
+  // ⚠ DAQUI PRA BAIXO: rotas paramétricas (:id). Tudo que vem antes disso
+  // tem que ser path estático.
+  // ==========================================================================
+
+  @Public()
+  @Post(':id/photos')
+  async addPhoto(
+    @Param('id') id: string,
+    @Body() body: { ordem: 1 | 2; imageBase64: string },
+  ) {
+    if (body.ordem !== 1 && body.ordem !== 2) {
+      throw new BadRequestException('ordem deve ser 1 ou 2');
+    }
+    return this.service.addPhoto({ attendeeId: id, ordem: body.ordem, imageBase64: body.imageBase64 });
+  }
+
+  /** Stream da foto (jpeg). Protegido por JWT (admin). */
+  @Get(':id/photos/:ordem')
+  @Header('Content-Type', 'image/jpeg')
+  @Header('Cache-Control', 'private, max-age=300')
+  async getPhoto(
+    @Param('id') id: string,
+    @Param('ordem') ordem: string,
+    @Res() res: Response,
+  ) {
+    const ord = Number(ordem);
+    if (ord !== 1 && ord !== 2) throw new BadRequestException('ordem inválida');
+    const stream = await this.service.getPhotoStream(id, ord);
+    stream.pipe(res);
+  }
+
+  /** Re-tenta indexação no motor de reconhecimento (caso tenha falhado no upload). */
+  @Post(':id/enroll')
+  reenroll(@Param('id') id: string) {
+    return this.service.enrollAgain(id);
   }
 
   @Get(':id')
@@ -88,20 +143,5 @@ export class AttendeesController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
-  }
-
-  /** Stream da foto (jpeg). Protegido por JWT (admin). */
-  @Get(':id/photos/:ordem')
-  @Header('Content-Type', 'image/jpeg')
-  @Header('Cache-Control', 'private, max-age=300')
-  async getPhoto(
-    @Param('id') id: string,
-    @Param('ordem') ordem: string,
-    @Res() res: Response,
-  ) {
-    const ord = Number(ordem);
-    if (ord !== 1 && ord !== 2) throw new BadRequestException('ordem inválida');
-    const stream = await this.service.getPhotoStream(id, ord);
-    stream.pipe(res);
   }
 }

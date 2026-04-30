@@ -114,7 +114,26 @@ export interface AdminAttendee {
 // ---------------------------------------------------------------------------
 // API público (cadastro)
 // ---------------------------------------------------------------------------
+export type CheckResponse =
+  | { existe: false }
+  | {
+      existe: true;
+      id: string;
+      protocolo: string;
+      nome: string;
+      sobrenome: string;
+      status: AttendeeStatus;
+      fotosOrdens: number[];
+      completo: boolean;
+    };
+
 export const api = {
+  /** Lookup por CPF + evento. Decide se o usuário precisa cadastrar dados, foto ou nada. */
+  check(eventoId: string, cpf: string): Promise<CheckResponse> {
+    const qs = new URLSearchParams({ eventoId, cpf });
+    return request<CheckResponse>(`/attendees/check?${qs}`);
+  },
+
   register(payload: RegisterPayload): Promise<RegisterResponse> {
     return request('/attendees/register', { method: 'POST', body: JSON.stringify(payload) });
   },
@@ -213,6 +232,31 @@ export const adminApi = {
     },
     remove(token: string, id: string) {
       return request<{ ok: true }>(`/attendees/${id}`, { method: 'DELETE', token });
+    },
+    /** Re-indexa o embedding (usar quando a foto foi salva mas o reconhecimento estava down). */
+    reenroll(token: string, id: string) {
+      return request<{ ok: true; embeddingId: string }>(`/attendees/${id}/enroll`, {
+        method: 'POST',
+        token,
+      });
+    },
+    /** Lista pendentes de indexação (com foto mas sem embedding). */
+    listPendentes(token: string, eventId?: string) {
+      const qs = eventId ? `?eventId=${eventId}` : '';
+      return request<{ id: string; nome: string; sobrenome: string; eventId: string }[]>(
+        `/attendees/pendentes/list${qs}`,
+        { token },
+      );
+    },
+    /** Re-indexa todos pendentes em lote. */
+    enrollPendentes(token: string, eventId?: string) {
+      const qs = eventId ? `?eventId=${eventId}` : '';
+      return request<{
+        total: number;
+        ok: number;
+        falhas: number;
+        erros: { attendeeId: string; nome: string; erro: string }[];
+      }>(`/attendees/pendentes/enroll-all${qs}`, { method: 'POST', token });
     },
     photoUrl(id: string, ordem: 1 | 2): string {
       return `${BASE_URL}/api/attendees/${id}/photos/${ordem}`;

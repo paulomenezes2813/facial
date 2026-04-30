@@ -6,6 +6,7 @@ import { requireAdminToken } from '@/lib/session';
 import { ParticipantesFiltros } from '@/components/admin/ParticipantesFiltros';
 import { ExcluirParticipante } from '@/components/admin/ExcluirParticipante';
 import { ParticipanteDialog } from '@/components/admin/ParticipanteDialog';
+import { ReindexarPendentes } from '@/components/admin/ReindexarPendentes';
 import { api } from '@/lib/api';
 
 interface PageProps {
@@ -23,11 +24,29 @@ export default async function ParticipantesPage({ searchParams }: PageProps) {
     }),
   ]);
 
+  // Lista de pendentes é "best-effort": se a API ainda não tem o endpoint
+  // (ex: não foi reiniciada após adicionar a rota), a página não quebra —
+  // apenas o card "Re-indexar todos" não aparece.
+  let pendentes: Awaited<ReturnType<typeof adminApi.attendees.listPendentes>> = [];
+  try {
+    pendentes = await adminApi.attendees.listPendentes(token, searchParams.eventId);
+  } catch (e) {
+    // Silencioso por design — não polui o log do server em dev.
+  }
+
   async function excluir(id: string) {
     'use server';
     const t = requireAdminToken();
     await adminApi.attendees.remove(t, id);
     revalidatePath('/admin/participantes');
+  }
+
+  async function reindexarTodos() {
+    'use server';
+    const t = requireAdminToken();
+    const result = await adminApi.attendees.enrollPendentes(t, searchParams.eventId);
+    revalidatePath('/admin/participantes');
+    return result;
   }
 
   async function criar(form: FormData): Promise<{ id: string; protocolo: string }> {
@@ -68,6 +87,12 @@ export default async function ParticipantesPage({ searchParams }: PageProps) {
       <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4">
         <ParticipantesFiltros eventos={eventos.map((e) => ({ id: e.id, nome: e.nome }))} />
       </div>
+
+      {pendentes.length > 0 && (
+        <div className="mb-5">
+          <ReindexarPendentes onRun={reindexarTodos} totalPendentes={pendentes.length} />
+        </div>
+      )}
 
       {participantes.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">

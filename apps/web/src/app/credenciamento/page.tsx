@@ -1,16 +1,20 @@
-export default function CredenciamentoIndex() {
-  return (
-    <main className="mx-auto max-w-md px-6 py-10">
-      <h1 className="text-2xl font-bold">Credenciamento</h1>
-      <p className="mt-2 text-sm text-slate-600">
-        O acesso é feito por link único do evento, no formato:
-      </p>
-      <code className="mt-3 block rounded-lg bg-slate-100 px-3 py-2 text-sm">
-        /credenciamento/&lt;ID-DO-EVENTO&gt;
-      </code>
-      <p className="mt-4 text-sm text-slate-500">
-        Solicite o link ao organizador do evento para iniciar seu cadastro.
-      </p>
-    </main>
-  );
+import { CredenciamentoFlow } from '@/components/credenciamento/CredenciamentoFlow';
+
+type EventListItem = { id: string; nome: string };
+
+export default async function CredenciamentoIndex() {
+  // Lista pública de eventos pra mostrar no select da primeira etapa.
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+  let eventos: EventListItem[] = [];
+  try {
+    const res = await fetch(`${baseUrl}/api/events`, { cache: 'no-store' });
+    if (res.ok) {
+      const data: any[] = await res.json();
+      eventos = data.map((e) => ({ id: e.id, nome: e.nome }));
+    }
+  } catch {
+    /* fallback silencioso */
+  }
+
+  return <CredenciamentoFlow eventos={eventos} />;
 }

@@ -27,6 +27,7 @@ export interface RecognitionEnrollResponse {
   quality_score: number;
   liveness_score: number;
   face_count: number;
+  face_image_base64?: string | null;
 }
 
 @Injectable()
@@ -43,7 +44,12 @@ export class RecognitionService {
     });
   }
 
-  async enroll(dto: EnrollDto): Promise<{ embeddingId: string; qualityScore: number; livenessScore: number }> {
+  async enroll(dto: EnrollDto): Promise<{
+    embeddingId: string;
+    qualityScore: number;
+    livenessScore: number;
+    faceImageBase64?: string | null;
+  }> {
     try {
       const { data } = await this.http.post<RecognitionEnrollResponse>('/enroll', {
         attendeeId: dto.attendeeId,
@@ -54,10 +60,21 @@ export class RecognitionService {
         embeddingId: data.embedding_id,
         qualityScore: data.quality_score,
         livenessScore: data.liveness_score,
+        faceImageBase64: data.face_image_base64 ?? null,
       };
     } catch (err: any) {
+      const code = err?.code;
       const detail = err?.response?.data?.detail;
       const status = err?.response?.status ?? 500;
+
+      // Sem resposta = problema de rede (serviço fora do ar / timeout / DNS)
+      if (!err?.response) {
+        const url = (err?.config?.baseURL ?? '') + (err?.config?.url ?? '');
+        const msg = `Serviço de reconhecimento facial indisponível (${code ?? 'sem resposta'}) em ${url}. Verifique se o serviço Python está rodando.`;
+        this.log.error(msg);
+        throw new HttpException(msg, 503);
+      }
+
       this.log.error(`Falha no enroll (HTTP ${status}): ${JSON.stringify(detail ?? err?.message)}`);
       // Se o Python retornou um motivo estruturado, repassamos
       if (detail && typeof detail === 'object' && detail.message) {

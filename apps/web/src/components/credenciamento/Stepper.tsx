@@ -3,7 +3,7 @@
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
-export type StepKey = 'dados' | 'foto1' | 'foto2';
+export type StepKey = 'cpf' | 'dados' | 'foto1' | 'foto2';
 
 interface StepperProps {
   current: StepKey;
@@ -11,14 +11,15 @@ interface StepperProps {
 }
 
 const STEPS: { key: StepKey; index: number; titulo: string; subtitulo: string }[] = [
-  { key: 'dados', index: 1, titulo: 'Dados', subtitulo: 'Preencha seus dados' },
-  { key: 'foto1', index: 2, titulo: 'Foto 1', subtitulo: 'Selfie de frente' },
-  { key: 'foto2', index: 3, titulo: 'Foto 2', subtitulo: 'Leve ângulo' },
+  { key: 'cpf', index: 1, titulo: 'CPF', subtitulo: 'Identifique-se' },
+  { key: 'dados', index: 2, titulo: 'Dados', subtitulo: 'Preencha seus dados' },
+  { key: 'foto1', index: 3, titulo: 'Foto 1', subtitulo: 'Selfie de frente' },
+  { key: 'foto2', index: 4, titulo: 'Foto 2', subtitulo: 'Leve ângulo' },
 ];
 
 export function Stepper({ current, completed }: StepperProps) {
   return (
-    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+    <div className="grid grid-cols-4 gap-2 sm:gap-3">
       {STEPS.map((step) => {
         const isActive = step.key === current;
         const isDone = completed.has(step.key);
@@ -26,7 +27,7 @@ export function Stepper({ current, completed }: StepperProps) {
           <div
             key={step.key}
             className={cn(
-              'rounded-2xl border px-4 py-3 transition-all duration-200',
+              'rounded-2xl border px-3 py-3 transition-all duration-200 sm:px-4',
               isActive
                 ? 'border-brand-500 bg-brand-500 text-white shadow-md shadow-brand-500/25'
                 : isDone

@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ArrowRight,
+  CalendarDays,
   Calendar,
   Mail,
   MapPin,
@@ -23,6 +24,7 @@ import { isValidCpf, maskCpf } from '@/lib/cpf';
 import { dataParaIso, maskCelular, maskData } from '@/lib/masks';
 
 export const DadosFormSchema = z.object({
+  eventoId: z.string().min(1, 'Selecione o evento'),
   nome: z.string().trim().min(1, 'Informe o nome').max(80),
   sobrenome: z.string().trim().min(1, 'Informe o sobrenome').max(120),
   cpf: z.string().refine(isValidCpf, 'CPF inválido'),
@@ -44,11 +46,15 @@ export const DadosFormSchema = z.object({
 export type DadosFormValues = z.infer<typeof DadosFormSchema>;
 
 interface DadosFormProps {
+  /** Lista de eventos disponíveis pra seleção. */
+  eventos: { id: string; nome: string }[];
   defaultValues?: Partial<DadosFormValues>;
+  /** Quando true, esconde o seletor de evento (caso já venha pré-selecionado por URL). */
+  travarEvento?: boolean;
   onSubmit: (values: DadosFormValues) => Promise<void> | void;
 }
 
-export function DadosForm({ defaultValues, onSubmit }: DadosFormProps) {
+export function DadosForm({ eventos, defaultValues, travarEvento, onSubmit }: DadosFormProps) {
   const {
     register,
     handleSubmit,
@@ -61,6 +67,9 @@ export function DadosForm({ defaultValues, onSubmit }: DadosFormProps) {
     mode: 'onTouched',
   });
 
+  const eventoSelecionado = watch('eventoId');
+  const eventoNome = eventos.find((e) => e.id === eventoSelecionado)?.nome;
+
   const consentimento = watch('consentimentoLgpd');
 
   return (
@@ -69,6 +78,55 @@ export function DadosForm({ defaultValues, onSubmit }: DadosFormProps) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
         {/* ── Coluna esquerda: formulário ── */}
         <div className="flex flex-col gap-5">
+          {/* ── Seleção do evento ── */}
+          <Card>
+            <CardHeader
+              icon={<CalendarDays className="h-5 w-5" />}
+              title="Evento"
+              subtitle={
+                travarEvento
+                  ? 'Você está se cadastrando no evento abaixo.'
+                  : 'Selecione o evento em que vai participar.'
+              }
+            />
+            <div className="mt-4">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Selecione o evento
+              </label>
+              {travarEvento && eventoNome ? (
+                <div className="flex h-12 w-full items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-base text-slate-800">
+                  {eventoNome}
+                </div>
+              ) : (
+                <select
+                  {...register('eventoId')}
+                  className={
+                    'h-12 w-full appearance-none rounded-xl border bg-white px-4 text-base text-slate-900 ' +
+                    'focus:outline-none focus:ring-2 focus:ring-brand-500/40 ' +
+                    (errors.eventoId
+                      ? 'border-red-400 focus:border-red-500 focus:ring-red-500/30'
+                      : 'border-slate-200 focus:border-brand-500')
+                  }
+                >
+                  <option value="">— Selecione —</option>
+                  {eventos.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {errors.eventoId && (
+                <p className="mt-1.5 text-xs text-red-600">{errors.eventoId.message}</p>
+              )}
+              {eventos.length === 0 && !travarEvento && (
+                <p className="mt-2 text-xs text-amber-700">
+                  Nenhum evento disponível no momento. Volte mais tarde ou contate a organização.
+                </p>
+              )}
+            </div>
+          </Card>
+
           <Card>
             <CardHeader
               icon={<User className="h-5 w-5" />}
