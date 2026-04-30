@@ -15,8 +15,10 @@ function getCtx(): AudioContext | null {
     if (!Ctor) return null;
     ctx = new Ctor();
   }
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-  return ctx;
+  const c = ctx;
+  if (!c) return null;
+  if (c.state === 'suspended') c.resume().catch(() => {});
+  return c;
 }
 
 function play(tones: Tone[]) {

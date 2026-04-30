@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Activity, CalendarDays, LayoutDashboard, LogOut, ShieldCheck, Tv, Users } from 'lucide-react';
+import { Activity, CalendarDays, LayoutDashboard, LogOut, QrCode, ShieldCheck, Tv, Users } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { clearAdminToken, getAdminToken } from '@/lib/session';
 
@@ -51,6 +51,9 @@ export default async function AdminAppLayout({ children }: { children: React.Rea
           <SidebarLink href="/admin/checkins" icon={<Activity className="h-4 w-4" />}>
             Check-ins
           </SidebarLink>
+          <SidebarLink href="/admin/qrcode" icon={<QrCode className="h-4 w-4" />}>
+            QR Code
+          </SidebarLink>
         </nav>
         <form action={logout} className="border-t border-slate-200 p-3">
           <p className="px-2 pb-2 text-xs text-slate-500">{me?.email}</p>
@@ -73,7 +76,7 @@ function SidebarLink({
   icon,
   children,
 }: {
-  href: string;
+  href: React.ComponentProps<typeof Link>['href'];
   icon: React.ReactNode;
   children: React.ReactNode;
 }) {

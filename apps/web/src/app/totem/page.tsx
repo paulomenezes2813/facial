@@ -273,17 +273,38 @@ function OvalGuide({ active }: { active: boolean }) {
   return (
     <svg
       className="pointer-events-none absolute inset-0 h-full w-full"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
+      viewBox="0 0 100 133"
+      preserveAspectRatio="xMidYMid slice"
     >
+      <defs>
+        <mask id="totem-hole">
+          <rect width="100" height="133" fill="white" />
+          <ellipse cx="50" cy="62" rx="28" ry="38" fill="black" />
+        </mask>
+      </defs>
+
+      {/* Escurece fora do oval para guiar o posicionamento */}
+      <rect width="100" height="133" fill="rgba(0,0,0,0.55)" mask="url(#totem-hole)" />
+
+      {/* Contorno com “sombra” para alto contraste */}
       <ellipse
         cx="50"
-        cy="50"
+        cy="62"
         rx="28"
         ry="38"
         fill="none"
-        stroke={active ? 'white' : 'rgba(255,255,255,0.3)'}
-        strokeWidth="0.4"
+        stroke="rgba(0,0,0,0.45)"
+        strokeWidth="2.2"
+        vectorEffect="non-scaling-stroke"
+      />
+      <ellipse
+        cx="50"
+        cy="62"
+        rx="28"
+        ry="38"
+        fill="none"
+        stroke={active ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.45)'}
+        strokeWidth="1.6"
         vectorEffect="non-scaling-stroke"
       />
     </svg>
