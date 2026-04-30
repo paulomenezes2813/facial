@@ -105,15 +105,20 @@ URL interna: `http://qdrant.railway.internal:6333`
 
 ## 7. Adicionar os 3 serviços do projeto (api, web, recognition)
 
-Pra cada um, no dashboard:
+Como este repo é um **monorepo compartilhado** (pnpm workspace com `packages/shared`), o deploy precisa ter acesso ao **repo inteiro**.
+
+Pra cada serviço, no dashboard:
 - **+ New** → **GitHub Repo** → seleciona o `facial`
-- **Settings** → **Source** → **Root Directory** → defina abaixo
+- **Settings** → **Source** → mantenha **Root Directory vazio** (ou `/`)
+- **Settings** → **Config as Code → Config Path** → aponte para o `railway.json` do serviço (caminho absoluto no repo)
 
 | Serviço | Root Directory | Build |
 |---|---|---|
-| api | `apps/api` | Detecta `Dockerfile` que vamos criar |
-| web | `apps/web` | Detecta `Dockerfile` que vamos criar |
-| recognition | `apps/recognition` | Detecta `Dockerfile` (já existe) |
+| api | *(vazio / `/`)* | Config Path: `/apps/api/railway.json` |
+| web | *(vazio / `/`)* | Config Path: `/apps/web/railway.json` |
+| recognition | *(vazio / `/`)* | Config Path: `/apps/recognition/railway.json` |
+
+> Isso garante que o build em Docker consiga enxergar `packages/shared` e o `pnpm-workspace.yaml`.
 
 ---
 

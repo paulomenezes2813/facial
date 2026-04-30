@@ -19,4 +19,5 @@ COPY src ./src
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Railway injeta PORT dinamicamente; em local, cai no default 8000
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

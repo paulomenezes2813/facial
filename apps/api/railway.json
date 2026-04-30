@@ -5,7 +5,7 @@
     "dockerfilePath": "apps/api/Dockerfile"
   },
   "deploy": {
-    "preDeployCommand": "cd apps/api && pnpm prisma migrate deploy && pnpm prisma:seed || true",
+    "preDeployCommand": "cd /repo/apps/api && pnpm prisma migrate deploy && pnpm prisma:seed",
     "startCommand": "cd /repo/apps/api && node dist/main.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5,
