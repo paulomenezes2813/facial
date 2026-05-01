@@ -29,24 +29,13 @@ RUN pnpm exec tsc prisma/seed.ts \
   --skipLibCheck \
   --resolveJsonModule
 
-# ----- runner: imagem final, só com prod -----
-FROM base AS runner
+# ----- runner: usa o build stage diretamente -----
+# Reinstalar com --prod num stage separado quebra com pnpm porque o cliente
+# Prisma gerado vive em /repo/node_modules/.pnpm/<hash>/node_modules/.prisma/
+# (não em apps/api/node_modules/.prisma/). Reaproveitar o build evita ter que
+# reconstruir o grafo de symlinks pnpm. Imagem fica maior, mas correta.
+FROM build AS runner
 ENV NODE_ENV=production
-WORKDIR /repo
-
-# Reinstala apenas deps de produção
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-COPY packages/shared/package.json ./packages/shared/
-COPY apps/api/package.json ./apps/api/
-RUN pnpm install --frozen-lockfile --filter @facial/api... --prod
-
-COPY --from=build /repo/packages/shared ./packages/shared
-COPY --from=build /repo/apps/api/dist ./apps/api/dist
-# prisma/ inclui schema.prisma + seed.js compilado no build stage
-COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
-COPY --from=build /repo/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
-COPY --from=build /repo/apps/api/node_modules/@prisma ./apps/api/node_modules/@prisma
-
 WORKDIR /repo/apps/api
 EXPOSE 3001
 # Railway injeta PORT — main.ts usa process.env.API_PORT ?? 3001
