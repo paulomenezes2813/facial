@@ -1,7 +1,11 @@
 FROM python:3.11-slim
 
 # Dependências do sistema necessárias para opencv e insightface
+# build-essential e cmake são pré-requisitos: insightface 0.7.3 não tem wheel
+# para Python 3.11/Linux, precisa compilar extensões Cython na instalação.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
     libgl1 \
     libglib2.0-0 \
     libgomp1 \
