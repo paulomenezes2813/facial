@@ -52,7 +52,7 @@ E ter:
 Se ainda não está:
 
 ```bash
-cd /Users/paulomenezes/git/facial
+cd /caminho/para/git/facial
 git init
 git add .
 git commit -m "Initial commit"
@@ -64,7 +64,7 @@ gh repo create facial --private --source=. --push
 ## 3. Criar projeto no Railway
 
 ```bash
-cd /Users/paulomenezes/git/facial
+cd /caminho/para/git/facial
 railway init   # cria projeto vazio
 ```
 

@@ -16,11 +16,11 @@ COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile --filter @facial/web... --prod=false
 
 # ----- build -----
+# NEXT_PUBLIC_* não precisa ser build arg: as únicas referências estão em
+# server components / route handlers, lidos em runtime via process.env.
 FROM deps AS build
 COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 WORKDIR /repo/apps/web
 RUN pnpm build
 

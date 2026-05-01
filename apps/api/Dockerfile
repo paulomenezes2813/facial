@@ -14,13 +14,20 @@ COPY packages/shared/package.json ./packages/shared/
 COPY apps/api/package.json ./apps/api/
 RUN pnpm install --frozen-lockfile --filter @facial/api... --prod=false
 
-# ----- build: gera dist + prisma client -----
+# ----- build: gera dist + prisma client + seed compilado -----
 FROM deps AS build
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 WORKDIR /repo/apps/api
 RUN pnpm prisma generate
 RUN pnpm build
+# Compila prisma/seed.ts → prisma/seed.js para rodar em produção sem ts-node
+RUN pnpm exec tsc prisma/seed.ts \
+  --module commonjs \
+  --target ES2022 \
+  --esModuleInterop \
+  --skipLibCheck \
+  --resolveJsonModule
 
 # ----- runner: imagem final, só com prod -----
 FROM base AS runner
@@ -35,6 +42,7 @@ RUN pnpm install --frozen-lockfile --filter @facial/api... --prod
 
 COPY --from=build /repo/packages/shared ./packages/shared
 COPY --from=build /repo/apps/api/dist ./apps/api/dist
+# prisma/ inclui schema.prisma + seed.js compilado no build stage
 COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
 COPY --from=build /repo/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
 COPY --from=build /repo/apps/api/node_modules/@prisma ./apps/api/node_modules/@prisma
