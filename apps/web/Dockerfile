@@ -25,11 +25,14 @@ WORKDIR /repo/apps/web
 RUN pnpm build
 
 # ----- runner -----
+# Em monorepo, o standalone do Next gera apps/web/server.js dentro do bundle.
+# Copiando standalone para /repo, o server.js fica em /repo/apps/web/server.js
+# (que é o caminho no startCommand do railway.json).
 FROM base AS runner
 ENV NODE_ENV=production
-WORKDIR /repo/apps/web
+WORKDIR /repo
 
-# Standalone copy
+# Standalone copy (contém apps/web/server.js, node_modules/, packages/shared/)
 COPY --from=build /repo/apps/web/.next/standalone ./
 COPY --from=build /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build /repo/apps/web/public ./apps/web/public
