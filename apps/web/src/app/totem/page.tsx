@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Maximize2, Minimize2, Pause, Play, UserSearch } from 'lucide-react';
+import { LogOut, Maximize2, Minimize2, Pause, Play, Tv, UserSearch, X } from 'lucide-react';
 import { totemApi, ApiError, type CheckinResponse } from '@/lib/api';
 import { clearTotemSession, loadTotemSession } from '@/lib/totem-storage';
 import { KioskDisplay, type KioskState } from '@/components/totem/KioskDisplay';
 import { CheckinManualModal } from '@/components/totem/CheckinManualModal';
 import { useFullscreen } from '@/lib/useFullscreen';
 import { playClick, playError, playSuccess } from '@/lib/audio';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const CAPTURE_INTERVAL_MS = 2500;
 const COOLDOWN_AFTER_RESULT_MS = 5000;
@@ -29,6 +31,11 @@ export default function TotemKiosk() {
   const [audioOn, setAudioOn] = useState(true);
   const [paused, setPaused] = useState(false);
   const { isFs, toggle: toggleFs } = useFullscreen();
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [switchEventId, setSwitchEventId] = useState('');
+  const [events, setEvents] = useState<Array<{ id: string; nome: string }>>([]);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [switchPending, setSwitchPending] = useState(false);
 
   function togglePause() {
     setPaused((p) => {
@@ -49,6 +56,47 @@ export default function TotemKiosk() {
     }
     setSession(s);
   }, [router]);
+
+  // -------- Lista eventos (público) --------
+  useEffect(() => {
+    (async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3006';
+        const res = await fetch(`${baseUrl}/api/events`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json()) as Array<{ id: string; nome: string }>;
+        setEvents(data.map((e) => ({ id: e.id, nome: e.nome })));
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  // -------- Trocar evento (por nome/id) --------
+  const doSwitchEvent = useCallback(async () => {
+    if (!session) return;
+    if (!switchEventId) return;
+    setSwitchError(null);
+    setSwitchPending(true);
+    try {
+      const next = await totemApi.switchEvent(session.token, switchEventId);
+      localStorage.setItem('facial.totem.session', JSON.stringify(next));
+      setSession(next);
+      setEstado({ kind: 'idle' });
+      cooldownUntilRef.current = 0;
+      setPaused(false);
+      setSwitchOpen(false);
+      setSwitchEventId('');
+    } catch (err) {
+      setSwitchError(
+        err instanceof ApiError && err.status === 403
+          ? 'Troca de evento não habilitada na API (defina ALLOW_TOTEM_EVENT_SWITCH=true).'
+          : 'Não foi possível trocar o evento.',
+      );
+    } finally {
+      setSwitchPending(false);
+    }
+  }, [switchEventId, session]);
 
   // -------- Câmera --------
   useEffect(() => {
@@ -162,7 +210,18 @@ export default function TotemKiosk() {
       <header className="flex items-center justify-between px-6 py-3 text-xs">
         <div>
           <p className="text-slate-400">Evento</p>
-          <p className="font-semibold">{session.totem.evento.nome}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-semibold">{session.totem.evento.nome}</p>
+            <button
+              onClick={() => setSwitchOpen(true)}
+              className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-200 transition hover:bg-white/10"
+              title="Trocar evento (re-parear)"
+              type="button"
+            >
+              <Tv className="h-3.5 w-3.5" />
+              Trocar
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <IconButton
@@ -184,6 +243,59 @@ export default function TotemKiosk() {
           </IconButton>
         </div>
       </header>
+
+      {/* Modal: trocar evento (re-parear com outra apiKey) */}
+      {switchOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold">Trocar evento</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Cole a <strong>apiKey</strong> do totem do evento desejado.
+                </p>
+              </div>
+              <button
+                onClick={() => setSwitchOpen(false)}
+                className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
+                type="button"
+                title="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-slate-700">Evento</label>
+              <select
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                value={switchEventId}
+                onChange={(e) => setSwitchEventId(e.target.value)}
+              >
+                <option value="">Selecione…</option>
+                {events.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nome}
+                  </option>
+                ))}
+              </select>
+              {switchError && (
+                <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {switchError}
+                </p>
+              )}
+              <div className="mt-4 flex gap-3">
+                <Button variant="secondary" className="flex-1" onClick={() => setSwitchOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button className="flex-1" onClick={doSwitchEvent} loading={switchPending} disabled={!switchEventId}>
+                  Trocar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Layout que vira coluna em portrait/mobile, lado-a-lado em landscape */}
       <div className="grid flex-1 grid-cols-1 gap-4 px-4 pb-4 sm:gap-6 sm:px-6 sm:pb-6 portrait:grid-rows-[3fr_2fr] landscape:grid-cols-2">
@@ -218,7 +330,7 @@ export default function TotemKiosk() {
 
         {/* Painel de feedback */}
         <div className="relative flex items-center justify-center rounded-3xl bg-white px-6 py-10 text-slate-900 sm:px-10">
-          <KioskDisplay state={estado} eventoNome={session.totem.evento.nome} />
+          <KioskDisplay state={estado} eventoNome={session.totem.evento.nome} token={session.token} />
 
           {/* Botão de fallback manual — discreto no rodapé do painel */}
           <button

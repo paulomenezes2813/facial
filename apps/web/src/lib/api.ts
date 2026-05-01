@@ -436,6 +436,13 @@ export const totemApi = {
       body: JSON.stringify({ apiKey }),
     });
   },
+  switchEvent(token: string, eventId: string) {
+    return request<TotemSession>('/totem/switch-event', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ eventId }),
+    });
+  },
   checkin(token: string, imageBase64: string) {
     return request<CheckinResponse>('/totem/checkin', {
       method: 'POST',

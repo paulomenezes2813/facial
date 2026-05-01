@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RecognitionService } from '../recognition/recognition.service';
+import { StorageService } from '../storage/storage.service';
 
 export interface CheckinResult {
   matched: boolean;
@@ -26,6 +27,7 @@ export class TotemService {
     private readonly prisma: PrismaService,
     private readonly recognition: RecognitionService,
     private readonly jwt: JwtService,
+    private readonly storage: StorageService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -103,6 +105,47 @@ export class TotemService {
           nome: totem.evento.nome,
           inicio: totem.evento.inicio,
           fim: totem.evento.fim,
+        },
+      },
+    };
+  }
+
+  /**
+   * Dev-only helper: cria sessão do totem para um evento arbitrário.
+   * Não usa apiKey, apenas o totemId já autenticado via JWT.
+   */
+  async sessionForEvent(totemId: string, eventId: string) {
+    const [totem, evento] = await Promise.all([
+      this.prisma.totem.findUnique({ where: { id: totemId } }),
+      this.prisma.event.findUnique({ where: { id: eventId } }),
+    ]);
+    if (!totem) throw new UnauthorizedException('Totem inválido');
+    if (!evento) throw new NotFoundException('Evento não encontrado');
+
+    await this.prisma.totem.update({
+      where: { id: totem.id },
+      data: { ultimoSync: new Date(), eventId },
+    });
+
+    const token = await this.jwt.signAsync(
+      {
+        sub: totem.id,
+        type: 'totem' as const,
+        eventId,
+      },
+      { expiresIn: '30d' },
+    );
+
+    return {
+      token,
+      totem: {
+        id: totem.id,
+        nome: totem.nome,
+        evento: {
+          id: evento.id,
+          nome: evento.nome,
+          inicio: evento.inicio,
+          fim: evento.fim,
         },
       },
     };
@@ -230,6 +273,27 @@ export class TotemService {
         protocolo: true,
       },
     });
+  }
+
+  /** Stream de foto do participante (escopado ao evento do totem). */
+  async getPhotoStream(eventId: string, attendeeId: string, ordem: 1 | 2) {
+    const attendee = await this.prisma.attendee.findUnique({
+      where: { id: attendeeId },
+      select: { id: true, eventId: true, status: true },
+    });
+    if (!attendee || attendee.status === 'DELETED') {
+      throw new NotFoundException('Participante não encontrado');
+    }
+    if (attendee.eventId !== eventId) {
+      throw new UnauthorizedException('Participante não pertence a este evento');
+    }
+
+    const photo = await this.prisma.photo.findUnique({
+      where: { attendeeId_ordem: { attendeeId, ordem } },
+      select: { storageKey: true },
+    });
+    if (!photo) throw new NotFoundException('Foto não encontrada');
+    return this.storage.getStream(photo.storageKey);
   }
 
   async checkinManual(totemId: string, eventId: string, attendeeId: string): Promise<CheckinResult> {

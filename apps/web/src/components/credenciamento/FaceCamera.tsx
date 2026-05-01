@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, RefreshCw, Check } from 'lucide-react';
+import { Camera, RefreshCw, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { computeBrightness, computeSharpness, validateQuality, type QualityResult } from '@/lib/imageQuality';
 
 interface FaceCameraProps {
   /** Texto curto exibido abaixo da câmera. */
@@ -13,6 +14,9 @@ interface FaceCameraProps {
   onCapture: (imageBase64: string) => Promise<void> | void;
 }
 
+const FRAME_COUNT = 3;
+const FRAME_INTERVAL_MS = 150;
+
 export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -21,6 +25,8 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  const [quality, setQuality] = useState<QualityResult | null>(null);
 
   const start = useCallback(async () => {
     setError(null);
@@ -64,27 +70,75 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function snapshot() {
+  /**
+   * Tira um snapshot do vídeo SEM espelhar (a imagem enviada deve ser
+   * geometricamente correta — o backend espera selfie real, não invertida).
+   * O preview na tela continua espelhado via CSS (-scale-x-100).
+   */
+  function grabFrame(): { dataUrl: string; imageData: ImageData } | null {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    if (!video || !canvas) return null;
+    if (!video.videoWidth || !video.videoHeight) return null;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d')!;
-    // Espelha horizontalmente (selfie)
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    // IMPORTANTE: sem translate/scale — desenha igual ao sensor.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    setPreviewUrl(dataUrl);
-    // Para a câmera enquanto preview está visível
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    setStream(null);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    return { dataUrl, imageData };
+  }
+
+  async function captureMultiFrame() {
+    if (capturing) return;
+    setCapturing(true);
+    setQuality(null);
+
+    try {
+      const frames: { dataUrl: string; sharpness: number; brightness: number }[] = [];
+
+      for (let i = 0; i < FRAME_COUNT; i++) {
+        const f = grabFrame();
+        if (f) {
+          const sharpness = computeSharpness(f.imageData);
+          const brightness = computeBrightness(f.imageData);
+          frames.push({ dataUrl: f.dataUrl, sharpness, brightness });
+        }
+        if (i < FRAME_COUNT - 1) {
+          await new Promise((r) => setTimeout(r, FRAME_INTERVAL_MS));
+        }
+      }
+
+      if (frames.length === 0) return;
+
+      // Escolhe o frame mais nítido.
+      frames.sort((a, b) => b.sharpness - a.sharpness);
+      const best = frames[0];
+
+      const q = validateQuality({ sharpness: best.sharpness, brightness: best.brightness });
+      setQuality(q);
+
+      if (!q.ok) {
+        // Não vai pro preview — mantém a câmera viva pra usuário tentar de novo.
+        return;
+      }
+
+      setPreviewUrl(best.dataUrl);
+      // Para a câmera enquanto preview está visível.
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setStream(null);
+    } finally {
+      setCapturing(false);
+    }
   }
 
   function retake() {
     setPreviewUrl(null);
+    setQuality(null);
     start();
   }
 
@@ -104,7 +158,12 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black">
         {previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewUrl} alt="Pré-visualização" className="h-full w-full object-cover" />
+          <img
+            src={previewUrl}
+            alt="Pré-visualização"
+            // Espelha SÓ visualmente para parecer selfie — o base64 enviado segue não-espelhado.
+            className="h-full w-full -scale-x-100 object-cover"
+          />
         ) : (
           <>
             <video
@@ -141,6 +200,15 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
         </div>
       )}
 
+      {quality && !quality.ok && !previewUrl && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <strong>Qualidade insuficiente.</strong> {quality.hint}
+          </div>
+        </div>
+      )}
+
       {previewUrl ? (
         <div className="flex gap-3">
           <Button variant="secondary" size="lg" onClick={retake} className="flex-1" disabled={submitting}>
@@ -151,9 +219,9 @@ export function FaceCamera({ titulo, dicas = [], onCapture }: FaceCameraProps) {
           </Button>
         </div>
       ) : (
-        <Button size="lg" onClick={snapshot} disabled={!stream}>
+        <Button size="lg" onClick={captureMultiFrame} disabled={!stream || capturing} loading={capturing}>
           <Camera className="h-5 w-5" />
-          Capturar
+          {capturing ? 'Capturando...' : 'Capturar'}
         </Button>
       )}
     </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, PauseCircle, ScanFace, UserCheck, UserX } from 'lucide-react';
 import type { CheckinResponse } from '@/lib/api';
 
@@ -14,9 +15,11 @@ interface Props {
   state: KioskState;
   /** Nome do evento — exibido sutilmente em idle. */
   eventoNome?: string;
+  /** Token do totem (JWT) — usado para buscar a foto do attendee. */
+  token?: string;
 }
 
-export function KioskDisplay({ state, eventoNome }: Props) {
+export function KioskDisplay({ state, eventoNome, token }: Props) {
   switch (state.kind) {
     case 'idle':
       return (
@@ -58,11 +61,24 @@ export function KioskDisplay({ state, eventoNome }: Props) {
       const a = state.data;
       const Icon = a.jaCheckin ? UserCheck : CheckCircle2;
       const titulo = a.jaCheckin ? 'Você já fez check-in' : 'Bem-vindo(a)!';
+      const canShowPhoto = Boolean(token && a.id);
       return (
         <Center className="animate-[fade-in_0.4s_ease-out]">
-          <Bubble color="success" size="xl" className="animate-[scale-in_0.5s_cubic-bezier(0.34,1.56,0.64,1)]">
-            <Icon className="h-24 w-24 sm:h-32 sm:w-32" strokeWidth={1.5} />
-          </Bubble>
+          {canShowPhoto ? (
+            <AttendeePhotoBubble
+              token={token!}
+              attendeeId={a.id}
+              fallbackIcon={<Icon className="h-24 w-24 sm:h-32 sm:w-32" strokeWidth={1.5} />}
+            />
+          ) : (
+            <Bubble
+              color="success"
+              size="xl"
+              className="animate-[scale-in_0.5s_cubic-bezier(0.34,1.56,0.64,1)]"
+            >
+              <Icon className="h-24 w-24 sm:h-32 sm:w-32" strokeWidth={1.5} />
+            </Bubble>
+          )}
           <BigTitle className="text-success-700">{titulo}</BigTitle>
           <p className="text-center text-4xl font-extrabold leading-tight text-slate-900 sm:text-5xl lg:text-6xl">
             {a.nome} {a.sobrenome}
@@ -99,6 +115,63 @@ export function KioskDisplay({ state, eventoNome }: Props) {
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+function AttendeePhotoBubble({
+  token,
+  attendeeId,
+  fallbackIcon,
+}: {
+  token: string;
+  attendeeId: string;
+  fallbackIcon: React.ReactNode;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setFailed(false);
+    setUrl(null);
+
+    (async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+        // Busca JPEG do backend com Authorization (img src não consegue enviar header).
+        const res = await fetch(`${baseUrl}/api/totem/attendees/${attendeeId}/photos/1`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        if (!res.ok) throw new Error(`photo_fetch_failed_${res.status}`);
+        const blob = await res.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setUrl(objectUrl);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [attendeeId, token]);
+
+  return (
+    <Bubble color="success" size="xl" className="animate-[scale-in_0.5s_cubic-bezier(0.34,1.56,0.64,1)]">
+      {url && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt="Foto do participante"
+          className="h-full w-full rounded-[3rem] object-cover"
+        />
+      ) : (
+        fallbackIcon
+      )}
+    </Bubble>
+  );
+}
 
 function Center({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
