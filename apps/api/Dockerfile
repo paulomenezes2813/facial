@@ -4,6 +4,9 @@
 # No Railway: defina Root Directory = "/" e Dockerfile Path = "apps/api/Dockerfile"
 # =============================================================================
 FROM node:20-alpine AS base
+# openssl + libc6-compat são necessários para o Prisma engine na Alpine.
+# Sem eles, "prisma migrate deploy" no preDeployCommand falha com erro do OpenSSL.
+RUN apk add --no-cache openssl libc6-compat
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /repo
 
