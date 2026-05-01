@@ -21,7 +21,14 @@ export class StorageService implements OnModuleInit {
     this.bucket = process.env.MINIO_BUCKET ?? 'facial-photos';
   }
 
-  async onModuleInit() {
+  onModuleInit() {
+    // Não awaitar: bucketExists pode travar indefinidamente se o MinIO estiver
+    // fora — isso bloqueia o app.listen() e o healthcheck nunca passa.
+    // Roda em background e loga o resultado.
+    void this.ensureBucket();
+  }
+
+  private async ensureBucket() {
     try {
       const exists = await this.client.bucketExists(this.bucket);
       if (!exists) {
