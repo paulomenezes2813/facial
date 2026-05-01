@@ -16,6 +16,14 @@ export async function POST(req: Request) {
     setAdminToken(token);
     return NextResponse.json({ ok: true, user });
   } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.error('[admin/login] erro ao chamar API:', {
+      name: e?.name,
+      message: e?.message,
+      status: e?.status,
+      detail: e?.detail,
+      url: e?.url,
+    });
     const msg =
       typeof e?.detail?.message === 'string'
         ? e.detail.message
