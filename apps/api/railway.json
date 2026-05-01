@@ -5,7 +5,8 @@
     "dockerfilePath": "apps/api/Dockerfile"
   },
   "deploy": {
-    "startCommand": "sh -c 'cd /repo/apps/api && (pnpm prisma migrate deploy 2>&1 || echo MIGRATE_FAILED) && (node prisma/seed.js 2>&1 || echo SEED_FAILED) && node dist/src/main.js'",
+    "preDeployCommand": "cd /repo/apps/api && pnpm prisma migrate deploy && node prisma/seed.js",
+    "startCommand": "node /repo/apps/api/dist/src/main.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5,
     "healthcheckPath": "/api/health",
