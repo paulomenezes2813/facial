@@ -26,7 +26,8 @@ async function bootstrap() {
 
   // Railway injeta PORT; em dev usa API_PORT do .env; fallback 3001.
   const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3001);
-  await app.listen(port);
+  // Bind em 0.0.0.0 — NestJS 10 default é localhost, que não funciona em container.
+  await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
   console.log(`✓ API rodando em http://localhost:${port}/api`);
 }
