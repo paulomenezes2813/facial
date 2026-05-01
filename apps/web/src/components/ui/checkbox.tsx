@@ -11,7 +11,8 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(functi
   { className, label, error, id, checked, ...props },
   ref,
 ) {
-  const inputId = id ?? React.useId();
+  const generatedId = React.useId();
+  const inputId = id ?? generatedId;
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={inputId} className="flex cursor-pointer items-start gap-3">
