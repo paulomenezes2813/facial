@@ -16,9 +16,13 @@ COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile --filter @facial/web... --prod=false
 
 # ----- build -----
-# NEXT_PUBLIC_* não precisa ser build arg: as únicas referências estão em
-# server components / route handlers, lidos em runtime via process.env.
+# NEXT_PUBLIC_* É inlineado no bundle do browser em build time pelo Next.
+# lib/api.ts é importado por client components (ex.: CpfStep), então
+# NEXT_PUBLIC_API_URL precisa estar presente AQUI, não só no runtime.
+# Setar a env no serviço web do Railway — ela é exposta como build arg automaticamente.
 FROM deps AS build
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web
 WORKDIR /repo/apps/web
