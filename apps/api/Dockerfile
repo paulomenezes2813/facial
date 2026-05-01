@@ -43,4 +43,4 @@ WORKDIR /repo/apps/api
 EXPOSE 3001
 # Railway injeta PORT — main.ts usa process.env.API_PORT ?? 3001
 ENV API_PORT=${PORT:-3001}
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
