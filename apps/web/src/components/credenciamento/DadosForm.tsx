@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -21,9 +22,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { isValidCpf, maskCpf } from '@/lib/cpf';
+import { idadeAnosCompletos } from '@/lib/idade';
 import { dataParaIso, maskCelular, maskData } from '@/lib/masks';
 
-export const DadosFormSchema = z.object({
+const DadosFormSchemaBase = z.object({
   eventoId: z.string().min(1, 'Selecione o evento'),
   nome: z.string().trim().min(1, 'Informe o nome').max(80),
   sobrenome: z.string().trim().min(1, 'Informe o sobrenome').max(120),
@@ -38,9 +40,33 @@ export const DadosFormSchema = z.object({
     .refine((v) => v.replace(/\D/g, '').length >= 10, 'Celular inválido')
     .refine((v) => v.replace(/\D/g, '').length <= 11, 'Celular inválido'),
   municipio: z.string().trim().min(1, 'Informe o município'),
+  cpfResponsavel: z.string().optional().default(''),
   consentimentoLgpd: z.literal(true, {
     errorMap: () => ({ message: 'É necessário aceitar o termo de consentimento' }),
   }),
+});
+
+export const DadosFormSchema = DadosFormSchemaBase.superRefine((data, ctx) => {
+  const iso = dataParaIso(data.dataNascimento);
+  if (!iso) return;
+  if (idadeAnosCompletos(iso) >= 18) return;
+
+  const r = (data.cpfResponsavel ?? '').trim();
+  if (!isValidCpf(r)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'CPF do responsável legal é obrigatório para menores de 18 anos.',
+      path: ['cpfResponsavel'],
+    });
+    return;
+  }
+  if (r.replace(/\D/g, '') === data.cpf.replace(/\D/g, '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'O CPF do responsável não pode ser o mesmo do participante.',
+      path: ['cpfResponsavel'],
+    });
+  }
 });
 
 export type DadosFormValues = z.infer<typeof DadosFormSchema>;
@@ -63,7 +89,7 @@ export function DadosForm({ eventos, defaultValues, travarEvento, onSubmit }: Da
     formState: { errors, isSubmitting },
   } = useForm<DadosFormValues>({
     resolver: zodResolver(DadosFormSchema),
-    defaultValues,
+    defaultValues: { cpfResponsavel: '', ...defaultValues },
     mode: 'onTouched',
   });
 
@@ -71,6 +97,16 @@ export function DadosForm({ eventos, defaultValues, travarEvento, onSubmit }: Da
   const eventoNome = eventos.find((e) => e.id === eventoSelecionado)?.nome;
 
   const consentimento = watch('consentimentoLgpd');
+  const dataNascStr = watch('dataNascimento');
+  const isoDn = dataNascStr ? dataParaIso(dataNascStr) : null;
+  const isMenor =
+    isoDn !== null && !Number.isNaN(idadeAnosCompletos(isoDn)) && idadeAnosCompletos(isoDn) < 18;
+
+  useEffect(() => {
+    if (!isMenor) {
+      setValue('cpfResponsavel', '', { shouldValidate: false });
+    }
+  }, [isMenor, setValue]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
@@ -247,6 +283,30 @@ export function DadosForm({ eventos, defaultValues, travarEvento, onSubmit }: Da
                 checked={!!consentimento}
                 error={errors.consentimentoLgpd?.message}
                 onChange={(e) => setValue('consentimentoLgpd', e.target.checked as true, { shouldValidate: true })}
+              />
+            </div>
+
+            <div className="mt-5">
+              <Input
+                label="CPF do responsável legal"
+                icon={<IdCard className="h-4 w-4" />}
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder={isMenor ? '000.000.000-00' : '—'}
+                hint={
+                  isMenor
+                    ? 'Obrigatório para menores de 18 anos (pai, mãe ou responsável legal).'
+                    : 'Não aplicável — você é maior de idade.'
+                }
+                disabled={!isMenor}
+                error={errors.cpfResponsavel?.message}
+                className={!isMenor ? 'cursor-not-allowed bg-slate-100 text-slate-500' : undefined}
+                {...register('cpfResponsavel', {
+                  onChange: (e) => {
+                    if (!isMenor) return;
+                    e.target.value = maskCpf(e.target.value);
+                  },
+                })}
               />
             </div>
           </Card>

@@ -10,7 +10,8 @@ import { Sucesso } from '@/components/credenciamento/Sucesso';
 import { JaCadastrado } from '@/components/credenciamento/JaCadastrado';
 import { Card, CardHeader } from '@/components/ui/card';
 import { dataParaIso } from '@/lib/masks';
-import { api, ApiError, type CheckResponse } from '@/lib/api';
+import { humanizeApiError } from '@/lib/api-errors';
+import { api, type CheckResponse } from '@/lib/api';
 
 interface Props {
   eventos: { id: string; nome: string }[];
@@ -98,13 +99,14 @@ export function CredenciamentoFlow({ eventos, eventoIdInicial, travarEvento }: P
         celular: values.celular,
         municipio: values.municipio,
         consentimentoLgpd: true,
+        cpfResponsavel: values.cpfResponsavel?.trim() ? values.cpfResponsavel : null,
       });
       setAttendeeId(res.id);
       setProtocolo(res.protocolo);
       markCompleted('dados');
       setStep('foto1');
     } catch (e) {
-      setErro(formatError(e, 'Não foi possível enviar seus dados.'));
+      setErro(humanizeApiError(e, 'Não foi possível enviar seus dados.'));
     }
   }
 
@@ -117,7 +119,7 @@ export function CredenciamentoFlow({ eventos, eventoIdInicial, travarEvento }: P
       markCompleted('foto1');
       setStep('foto2');
     } catch (e) {
-      setErro(formatError(e, 'Falha ao enviar a foto. Tente capturar novamente.'));
+      setErro(humanizeApiError(e, 'Falha ao enviar a foto. Tente capturar novamente.'));
     }
   }
 
@@ -129,7 +131,7 @@ export function CredenciamentoFlow({ eventos, eventoIdInicial, travarEvento }: P
       markCompleted('foto2');
       setStep('done');
     } catch (e) {
-      setErro(formatError(e, 'Falha ao enviar a foto.'));
+      setErro(humanizeApiError(e, 'Falha ao enviar a foto.'));
     }
   }
 
@@ -260,13 +262,3 @@ export function CredenciamentoFlow({ eventos, eventoIdInicial, travarEvento }: P
   );
 }
 
-function formatError(e: unknown, fallback: string): string {
-  if (e instanceof ApiError) {
-    const detail = (e.detail as { message?: string; reason?: string } | string | undefined) ?? null;
-    if (typeof detail === 'string') return detail;
-    if (detail && typeof detail === 'object' && 'message' in detail && detail.message) {
-      return detail.message;
-    }
-  }
-  return fallback;
-}

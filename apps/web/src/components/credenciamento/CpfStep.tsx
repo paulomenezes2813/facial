@@ -6,7 +6,8 @@ import { Card, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { isValidCpf, maskCpf } from '@/lib/cpf';
-import { api, ApiError, type CheckResponse } from '@/lib/api';
+import { humanizeApiError } from '@/lib/api-errors';
+import { api, type CheckResponse } from '@/lib/api';
 
 interface Props {
   eventos: { id: string; nome: string }[];
@@ -38,12 +39,7 @@ export function CpfStep({ eventos, eventoIdInicial, travarEvento, onResolved }: 
       const resultado = await api.check(eventoId, cpf);
       onResolved({ eventoId, cpf, resultado });
     } catch (err) {
-      if (err instanceof ApiError) {
-        const detail = err.detail as any;
-        setErro(detail?.message ?? 'Não foi possível consultar o CPF.');
-      } else {
-        setErro('Falha de rede ao consultar o CPF.');
-      }
+      setErro(humanizeApiError(err, 'Não foi possível consultar o CPF. Tente novamente.'));
     } finally {
       setPending(false);
     }

@@ -17,6 +17,18 @@ interface RegisterDto {
   municipio: string;
   consentimentoLgpd: true;
   consentimentoIp?: string;
+  /** Obrigatório quando data de nascimento indica menor de 18 anos. */
+  cpfResponsavel?: string | null;
+}
+
+function idadeAnosCompletos(dataNascimento: Date): number {
+  const today = new Date();
+  let age = today.getFullYear() - dataNascimento.getFullYear();
+  const m = today.getMonth() - dataNascimento.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dataNascimento.getDate())) {
+    age -= 1;
+  }
+  return age;
 }
 
 interface AddPhotoDto {
@@ -59,6 +71,22 @@ export class AttendeesService {
     const cpfHash = createHash('sha256').update(cpfNormalized).digest('hex');
     const cpfLast3 = cpfNormalized.slice(-3);
 
+    const dataNasc = new Date(dto.dataNascimento);
+    const idade = idadeAnosCompletos(dataNasc);
+
+    let responsavelCreate: { cpfHash: string; cpfLast3: string } | undefined;
+    if (idade < 18) {
+      const respNorm = (dto.cpfResponsavel ?? '').replace(/\D/g, '');
+      if (respNorm.length !== 11) {
+        throw new BadRequestException('CPF do responsável é obrigatório para menores de 18 anos.');
+      }
+      const respHash = createHash('sha256').update(respNorm).digest('hex');
+      if (respHash === cpfHash) {
+        throw new BadRequestException('O CPF do responsável não pode ser o mesmo do participante.');
+      }
+      responsavelCreate = { cpfHash: respHash, cpfLast3: respNorm.slice(-3) };
+    }
+
     const protocolo = generateProtocol();
 
     let attendee;
@@ -71,7 +99,7 @@ export class AttendeesService {
           sobrenome: dto.sobrenome,
           cpfHash,
           cpfLast3,
-          dataNascimento: new Date(dto.dataNascimento),
+          dataNascimento: dataNasc,
           cargo: dto.cargo ?? null,
           email: dto.email.toLowerCase(),
           celular: dto.celular,
@@ -80,6 +108,7 @@ export class AttendeesService {
           consentimentoIp: dto.consentimentoIp,
           consentimentoEm: new Date(),
           status: 'PENDING_PHOTOS',
+          responsavel: responsavelCreate ? { create: responsavelCreate } : undefined,
         },
       });
     } catch (e) {

@@ -73,6 +73,8 @@ export interface RegisterPayload {
   celular: string;
   municipio: string;
   consentimentoLgpd: true;
+  /** Enviado quando o participante é menor de 18 anos. */
+  cpfResponsavel?: string | null;
 }
 export interface RegisterResponse {
   id: string;
