@@ -11,6 +11,12 @@ opencv-python-headless==4.10.0.84
 numpy==1.26.4
 Pillow==10.4.0
 
+# AdaFace backend (opcional — só carrega se FACE_BACKEND=adaface)
+# mediapipe traz BlazeFace (Apache 2.0) como detector limpo de licença.
+mediapipe==0.10.14
+# torch.onnx.export (PyTorch recente) exige onnxscript
+onnxscript>=0.2.0
+
 # Vector DB
 qdrant-client==1.11.3
 

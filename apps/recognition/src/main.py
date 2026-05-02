@@ -78,7 +78,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "model": settings.insightface_model}
+    backend = (settings.face_backend or "insightface").lower()
+    if backend == "adaface":
+        return {
+            "status": "ok",
+            "backend": "adaface",
+            "model": "adaface_ir101_webface4m",
+            "onnx_path": settings.adaface_model_path,
+        }
+    return {"status": "ok", "backend": "insightface", "model": settings.insightface_model}
 
 
 @app.post("/enroll", response_model=EnrollResponse)
