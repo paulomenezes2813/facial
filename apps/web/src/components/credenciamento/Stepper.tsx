@@ -14,7 +14,7 @@ const STEPS: { key: StepKey; index: number; titulo: string; subtitulo: string }[
   { key: 'cpf', index: 1, titulo: 'CPF', subtitulo: 'Identifique-se' },
   { key: 'dados', index: 2, titulo: 'Dados', subtitulo: 'Preencha seus dados' },
   { key: 'foto1', index: 3, titulo: 'Foto 1', subtitulo: 'Selfie de frente' },
-  { key: 'foto2', index: 4, titulo: 'Foto 2', subtitulo: 'Leve ângulo' },
+  { key: 'foto2', index: 4, titulo: 'Foto 2', subtitulo: 'Obrigatória p/ concluir' },
 ];
 
 export function Stepper({ current, completed }: StepperProps) {

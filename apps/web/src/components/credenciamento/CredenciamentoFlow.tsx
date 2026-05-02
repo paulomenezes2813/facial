@@ -64,22 +64,32 @@ export function CredenciamentoFlow({ eventos, eventoIdInicial, travarEvento }: P
       return;
     }
 
-    // Pré-cadastrado
+    // Já existe no evento: dados salvos; pode faltar só fotos (ex.: problema na câmera antes).
     setAttendeeId(resultado.id);
     setProtocolo(resultado.protocolo);
     setParticipanteExistente({ nome: resultado.nome, sobrenome: resultado.sobrenome });
 
-    if (resultado.completo) {
-      // Já tem foto 1 → cadastro completo
+    const temFoto1 = resultado.fotosOrdens.includes(1);
+    const temFoto2 = resultado.fotosOrdens.includes(2);
+
+    if (temFoto1 && temFoto2) {
       markCompleted('dados');
       markCompleted('foto1');
-      if (resultado.fotosOrdens.includes(2)) markCompleted('foto2');
+      markCompleted('foto2');
       setStep('ja_cadastrado');
-    } else {
-      // Já tem dados, falta foto → vai pra foto1
-      markCompleted('dados');
-      setStep('foto1');
+      return;
     }
+
+    markCompleted('dados');
+
+    if (temFoto1 && !temFoto2) {
+      markCompleted('foto1');
+      setStep('foto2');
+      return;
+    }
+
+    // Tem dados no servidor mas ainda sem foto 1 (ex.: fechou antes da câmera).
+    setStep('foto1');
   }
 
   // ---------- Passo 2: Dados ----------
@@ -213,8 +223,13 @@ export function CredenciamentoFlow({ eventos, eventoIdInicial, travarEvento }: P
             <CardHeader
               title={
                 participanteExistente
-                  ? `Olá, ${participanteExistente.nome}! Falta só a foto.`
+                  ? `Olá, ${participanteExistente.nome}! Vamos às fotos`
                   : 'Centralize seu rosto e toque no botão para capturar'
+              }
+              subtitle={
+                participanteExistente
+                  ? 'Seu CPF e seus dados já estão salvos. Conclua as duas fotos agora ou mais tarde — use o mesmo CPF quando voltar.'
+                  : 'Serão duas fotos no total: esta e mais uma de ângulo. As duas são obrigatórias para o cadastro ficar completo.'
               }
             />
             <div className="mt-4">
@@ -231,10 +246,17 @@ export function CredenciamentoFlow({ eventos, eventoIdInicial, travarEvento }: P
           </Card>
         )}
 
-        {/* PASSO 4: Foto 2 */}
+        {/* PASSO 4: Foto 2 (obrigatória para concluir) */}
         {step === 'foto2' && (
           <Card>
-            <CardHeader title="Foto 2 — Leve ângulo" />
+            <CardHeader
+              title="Foto 2 — Última etapa (obrigatória)"
+              subtitle={
+                participanteExistente
+                  ? `${participanteExistente.nome}, falta só esta foto para concluir. Com apenas a foto 1 o credenciamento não fica completo.`
+                  : 'Esta segunda foto é obrigatória: só depois dela o seu cadastro facial fica completo no evento.'
+              }
+            />
             <p className="mt-1 text-sm text-slate-500">
               Vire o rosto levemente para o lado para uma segunda referência.
             </p>

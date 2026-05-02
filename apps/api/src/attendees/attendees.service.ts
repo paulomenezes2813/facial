@@ -279,6 +279,8 @@ export class AttendeesService {
     if (!attendee) return { existe: false as const };
 
     const fotosOrdens = attendee.fotos.map((f) => f.ordem).sort();
+    const temFoto1 = fotosOrdens.includes(1);
+    const temFoto2 = fotosOrdens.includes(2);
     return {
       existe: true as const,
       id: attendee.id,
@@ -287,8 +289,8 @@ export class AttendeesService {
       sobrenome: attendee.sobrenome,
       status: attendee.status,
       fotosOrdens,
-      // Considera "completo" se a foto 1 (a que vai pro reconhecimento) está enviada.
-      completo: fotosOrdens.includes(1),
+      /** Fluxo web: cadastro considerado completo só com as duas fotos enviadas. */
+      completo: temFoto1 && temFoto2,
     };
   }
 

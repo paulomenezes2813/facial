@@ -126,6 +126,7 @@ export type CheckResponse =
       sobrenome: string;
       status: AttendeeStatus;
       fotosOrdens: number[];
+      /** true apenas quando foto 1 e foto 2 já foram enviadas. */
       completo: boolean;
     };
 

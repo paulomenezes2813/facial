@@ -91,7 +91,7 @@ export function CpfStep({ eventos, eventoIdInicial, travarEvento, onResolved }: 
         <CardHeader
           icon={<IdCard className="h-5 w-5" />}
           title="Identificação"
-          subtitle="Digite seu CPF para iniciarmos seu credenciamento."
+          subtitle="Digite seu CPF para iniciar ou continuar. Se já salvou seus dados mas não enviou as fotos, use o mesmo CPF para retomar."
         />
         <div className="mt-4">
           <Input
