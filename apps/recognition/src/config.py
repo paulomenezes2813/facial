@@ -33,5 +33,14 @@ class Settings(BaseSettings):
     min_face_quality: float = 0.5
     min_liveness_score: float = 0.5
 
+    # Seleção de face em /match (totem): quando há várias pessoas no fundo,
+    # tentamos escolher a face dominante (maior e mais central) em vez de falhar.
+    # Se houver ambiguidade (2 rostos grandes), devolve "multiple_faces".
+    match_select_primary_face: bool = True
+    # Centro da tela: caixa de ROI com este tamanho relativo (0.0–1.0).
+    match_roi_size: float = 0.6
+    # Se a 2ª maior face tiver área >= (maior * ratio), consideramos ambíguo.
+    match_ambiguity_ratio: float = 0.75
+
 
 settings = Settings()

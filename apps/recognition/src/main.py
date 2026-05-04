@@ -59,6 +59,55 @@ def _log_json(level: str, payload: dict) -> None:
         logger.info(msg)
 
 
+def _pick_primary_face_for_match(img, faces):
+    """Seleciona a face mais provável de ser a do utilizador no totem.
+
+    Em ambiente de feira pode haver várias pessoas ao fundo. Em vez de falhar sempre
+    com "multiple_faces", escolhemos a face dominante (maior e mais central).
+    Se houver ambiguidade (duas faces grandes), devolvemos None para forçar o erro.
+    """
+
+    if not faces:
+        return None, "no_face"
+    if len(faces) == 1 or not settings.match_select_primary_face:
+        return faces[0], "single"
+
+    h, w = img.shape[:2]
+    img_area = max(1, w * h)
+
+    roi_size = min(0.95, max(0.1, float(settings.match_roi_size)))
+    rx1 = (1.0 - roi_size) / 2.0
+    ry1 = (1.0 - roi_size) / 2.0
+    rx2 = 1.0 - rx1
+    ry2 = 1.0 - ry1
+
+    scored: list[dict] = []
+    for i, f in enumerate(faces):
+        x1, y1, x2, y2 = f.bbox
+        bw = max(0, x2 - x1)
+        bh = max(0, y2 - y1)
+        area = bw * bh
+        area_frac = area / img_area
+        cx = (x1 + x2) / 2.0 / max(1, w)
+        cy = (y1 + y2) / 2.0 / max(1, h)
+        in_roi = rx1 <= cx <= rx2 and ry1 <= cy <= ry2
+        # score: área domina; bônus discreto por estar na ROI central
+        score = area_frac + (0.05 if in_roi else 0.0)
+        scored.append({"i": i, "face": f, "area": float(area), "score": float(score)})
+
+    scored.sort(key=lambda s: s["score"], reverse=True)
+    best = scored[0]
+
+    if len(scored) >= 2:
+        second = scored[1]
+        best_area = max(1.0, best["area"])
+        ratio = second["area"] / best_area
+        if ratio >= float(settings.match_ambiguity_ratio):
+            return None, "multiple_faces"
+
+    return best["face"], "dominant"
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     request_id = str(uuid.uuid4())
@@ -229,7 +278,8 @@ async def match(req: MatchRequest, request: Request) -> MatchResponse:
             },
         )
         return MatchResponse(matched=False, liveness_score=0.0, reason="no_face")
-    if len(faces) > 1:
+    face, pick_reason = _pick_primary_face_for_match(img, faces)
+    if face is None:
         _log_json(
             "info",
             {
@@ -240,12 +290,11 @@ async def match(req: MatchRequest, request: Request) -> MatchResponse:
                 "threshold": threshold,
                 "face_count": len(faces),
                 "reason": "multiple_faces",
+                "pick_reason": pick_reason,
                 "timings_ms": {"detect_total": round(t_detect * 1000, 1)},
             },
         )
         return MatchResponse(matched=False, liveness_score=0.0, reason="multiple_faces")
-
-    face = faces[0]
     live = liveness_score(img, face.det_score)
     if live < settings.min_liveness_score:
         _log_json(
